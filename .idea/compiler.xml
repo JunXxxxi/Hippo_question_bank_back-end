@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile default="true" name="Default" enabled="true" />
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="ExamAdmin" />
+        <module name="ExamCore-User" />
+        <module name="ExamMessage" />
+        <module name="ExamCore-DataVis" />
+        <module name="ExamCore-exam" />
+        <module name="ExamGateWay" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="ExamAuth" target="1.8" />
+      <module name="ExamCore-Message" target="1.5" />
+      <module name="feign-client" target="1.5" />
+      <module name="Service" target="1.5" />
+    </bytecodeTargetLevel>
+  </component>
+</project>
