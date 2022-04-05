@@ -4,7 +4,6 @@ package com.exam.service;
 import com.exam.entity.Exroom;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -17,10 +16,11 @@ public interface ExroomService {
     public int addExroom(Exroom exroom);
     public int modifyExroom(Exroom exroom);
     public int delExroom(int kid);
+    public void increStuNumExroom(Exroom exroom) throws InterruptedException;
     public Exroom findExroom(int kid);
     public boolean isExist(int kid);
     public List<Map<String, Object>> getExroomList();
-    public Map enterExroom(int kid);
+    public Map enterExroom(int kid) throws InterruptedException;
     public List<String> stringToList(String strs);
     public boolean putpermission(String exid,String uno);
     public boolean checkpermission(String exid, String uno);
