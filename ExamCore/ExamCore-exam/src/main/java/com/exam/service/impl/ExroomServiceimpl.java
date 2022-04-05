@@ -11,6 +11,8 @@ import com.exam.service.RedisService;
 import com.exam.service.UserService;
 import com.exam.util.FileUtil;
 import com.exam.util.UpdateUtil;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -39,6 +41,9 @@ public class ExroomServiceimpl implements ExroomService {
     ExamDataService examDataService;
     @Resource
     private RedisService redisService;
+
+    @Autowired
+    private RedissonClient redissonClient;//解决了使用redis分布锁的过程中，产生的业务还没执行完，但是锁到期的问题
     /**
      * 考生进入考场
      *
@@ -52,38 +57,54 @@ public class ExroomServiceimpl implements ExroomService {
         if(username.isEmpty()||username.equals("undefine")){
             ansmap.put("code","6");return ansmap;
         }
-        Exroom exroomInDB = findExroom(kid);
-        if (exroomInDB==null){  ansmap.put("code","0");return ansmap;}//考场不存在拦截
+
         Date now= new Date();
         Long createtime = now.getTime();
-        if (createtime>=exroomInDB.getDeadline()||createtime<=exroomInDB.getStarttime()){
-            ansmap.put("code","2");return ansmap;}//截止时间后进入拦截
-        //String uno = userService.usernametouno(username);
-        Object uno = redisService.hget("TK:"+username,"uno");
-        if(uno==null){ ansmap.put("code","5");return ansmap;}//学号拦截
-        if((!checkpermission(String.valueOf(kid),uno.toString()))&&exroomInDB.getGrouptype()==1){
-            ansmap.put("code","3");
-            return ansmap;}//不在考场接受范围拦截
-        if(exroomInDB.getNowStudentsNum() >= exroomInDB.getAllowStudentsNum()){
-            ansmap.put("code", "7");
-            return ansmap;
-        } //考场参加人数达到上限
-        else{
-            increStuNumExroom(exroomInDB);
-        }
-        int ans = examDataService.addexamdata(kid,exroomInDB.getPid(),uno.toString(),exroomInDB.getAllowtimes());
-        if (ans==-1||ans==2){  ansmap.put("code","4");return ansmap;}//超过考场进入上限
 
-        //第一位进入考场的考生向redis中写考场信息，用于后期提交校验时间
-        if(!redisService.hasKey("exroom-"+kid)){
-            long time = (exroomInDB.getStarttime()+exroomInDB.getTime()*60*1000-createtime)/1000;
-            redisService.set("exroom-"+kid, "true",time);
+        // 给exroomInDB加上分布式锁
+        RLock lock = redissonClient.getLock("exroom-"+kid);
+        try{
+            Exroom exroomInDB = (Exroom) redisService.get("exroom-"+kid);
+            if (exroomInDB == null){
+                exroomInDB= exroomDAO.findByKid(kid);
+                if(exroomInDB == null){  ansmap.put("code","0");return ansmap;}//考场不存在拦截
+                long time = (exroomInDB.getStarttime()+exroomInDB.getTime()*60*1000-createtime)/1000;
+                redisService.set("exroom-"+kid, exroomInDB,time);
+            }
+            if (createtime>=exroomInDB.getDeadline()||createtime<=exroomInDB.getStarttime()){
+                ansmap.put("code","2");return ansmap;}//截止时间后进入拦截
+            //String uno = userService.usernametouno(username);
+            Object uno = redisService.hget("TK:"+username,"uno");
+            if(uno==null){ ansmap.put("code","5");return ansmap;}//学号拦截
+            if((!checkpermission(String.valueOf(kid),uno.toString()))&&exroomInDB.getGrouptype()==1){
+                ansmap.put("code","3");
+                return ansmap;}//不在考场接受范围拦截
+            if(exroomInDB.getNowStudentsNum() >= exroomInDB.getAllowStudentsNum()){
+                ansmap.put("code", "7");
+                return ansmap;
+            } //考场参加人数达到上限
+            else{
+                increStuNumExroom(exroomInDB);
+            }
+            int ans = examDataService.addexamdata(kid,exroomInDB.getPid(),uno.toString(),exroomInDB.getAllowtimes());
+            if (ans==-1||ans==2){  ansmap.put("code","4");return ansmap;}//超过考场进入上限
+
+            //逻辑 添加考试记录 返回试题
+            //  int kno = RandomUtil.toFixdLengthString(uno+kid+RandomUtil.generateDigitalString(3), 16);
+            ansmap.put("code","1");
+            ansmap.put("expiretime",redisService.getExpire("exroom-"+kid));
+            return ansmap;
+        }catch (Exception e){
+            throw new RuntimeException(e.getMessage());
+        }finally {
+            if(lock.isLocked()){//判断锁是否处于锁定
+                if(lock.isHeldByCurrentThread()){//判断是否时该进程自己的锁
+                    lock.unlock();
+                }
+            }
         }
-        //逻辑 添加考试记录 返回试题
-        //  int kno = RandomUtil.toFixdLengthString(uno+kid+RandomUtil.generateDigitalString(3), 16);
-        ansmap.put("code","1");
-        ansmap.put("expiretime",redisService.getExpire("exroom-"+kid));
-        return ansmap;
+
+
     }
 
     @Override
