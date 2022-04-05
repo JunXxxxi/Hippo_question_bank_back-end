@@ -22,8 +22,11 @@ import javax.annotation.Resource;
 import org.springframework.data.domain.Pageable;
 import java.io.File;
 import java.util.*;
+
+import static java.lang.Thread.sleep;
+
 /**
- * @author xiaogu
+ * @author junxxxxi
  * @date 2020/7/15 19:29
  **/
 @Service
@@ -43,7 +46,7 @@ public class ExroomServiceimpl implements ExroomService {
      */
 
     @Override
-    public Map enterExroom(int kid) {
+    public synchronized Map enterExroom(int kid) throws InterruptedException {
         Map ansmap = new HashMap();
         String username = userService.getusernamebysu();
         if(username.isEmpty()||username.equals("undefine")){
@@ -61,6 +64,13 @@ public class ExroomServiceimpl implements ExroomService {
         if((!checkpermission(String.valueOf(kid),uno.toString()))&&exroomInDB.getGrouptype()==1){
             ansmap.put("code","3");
             return ansmap;}//不在考场接受范围拦截
+        if(exroomInDB.getNowStudentsNum() >= exroomInDB.getAllowStudentsNum()){
+            ansmap.put("code", "7");
+            return ansmap;
+        } //考场参加人数达到上限
+        else{
+            increStuNumExroom(exroomInDB);
+        }
         int ans = examDataService.addexamdata(kid,exroomInDB.getPid(),uno.toString(),exroomInDB.getAllowtimes());
         if (ans==-1||ans==2){  ansmap.put("code","4");return ansmap;}//超过考场进入上限
 
@@ -103,7 +113,11 @@ public class ExroomServiceimpl implements ExroomService {
     }
     @Override
     public Exroom findExroom(int kid) {
-        Exroom exroom= exroomDAO.findByKid(kid);
+        Exroom exroom = (Exroom) redisService.get("exroom-"+kid);
+        if (exroom == null){
+            exroom= exroomDAO.findByKid(kid);
+            redisService.set("exroom"+kid, exroom);
+        }
         return exroom;
     }
 
@@ -164,6 +178,15 @@ public class ExroomServiceimpl implements ExroomService {
         if(!isExist(kid)){return -1;}
         exroomDAO.deleteById(kid);
         return 0;
+    }
+
+    @Override
+    public synchronized void increStuNumExroom(Exroom exroom) throws InterruptedException {
+        redisService.del("exroom-"+exroom.getKid());
+        exroomDAO.updateStuNum(exroom.getKid());
+        sleep(500);
+        redisService.del("exroom-"+exroom.getKid());
+
     }
 
     @Override
