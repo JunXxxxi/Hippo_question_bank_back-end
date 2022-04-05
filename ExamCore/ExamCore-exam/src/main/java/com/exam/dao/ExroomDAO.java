@@ -27,5 +27,7 @@ public interface ExroomDAO extends JpaRepository<Exroom,Integer> {
     List<Exroom> findByStarttimeAfter(long now);
     @Query(nativeQuery =true,value = "select pid from exroom where kid=?1")
     Integer findPidByKid(int kid);
+    @Query(nativeQuery = true,value = "update exroom set nowStudentsNum = nowStudentsNum+1 where kid=?1")
+    void updateStuNum(int kid);
 
 }
