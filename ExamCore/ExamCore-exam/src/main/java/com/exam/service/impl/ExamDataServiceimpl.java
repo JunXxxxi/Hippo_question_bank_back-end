@@ -37,8 +37,9 @@ public class ExamDataServiceimpl implements ExamDataService {
     @Autowired
     AnswerService answerService;
     @Override
-    public int addexamdata(int kid,int pid,String uno,int ltimes) {
+    public synchronized int addexamdata(int kid,int pid,String uno,int ltimes) {
         Examdata examdata = getexam(kid, pid, uno);
+
         int times = examdata.getTimes();
         if (times>=ltimes&&ltimes!=0){return -1;}
         if (times==0){
